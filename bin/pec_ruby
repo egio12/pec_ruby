@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/pec_ruby'
+
+begin
+  if defined?(PecRuby::CLI)
+    PecRuby::CLI.new.run
+  else
+    puts "CLI non disponibile. Installa le dipendenze CLI:"
+    puts "gem install tty-prompt awesome_print"
+    exit 1
+  end
+rescue LoadError => e
+  puts "Errore nel caricamento della CLI: #{e.message}"
+  puts "Installa le dipendenze CLI:"
+  puts "gem install tty-prompt awesome_print"
+  exit 1
+end
