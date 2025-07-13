@@ -1,0 +1,32 @@
+# Gem files
+*.gem
+
+# Bundler
+.bundle/
+vendor/bundle/
+
+# RVM/rbenv
+.rvmrc
+.ruby-version
+.ruby-gemset
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Documentation
+doc/
+.yardoc/
+
+# Temporary files
+tmp/
+log/
