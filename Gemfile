@@ -2,7 +2,6 @@
 
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in pec_decoder.gemspec
 gemspec
 
 gem "rake", "~> 13.0"
