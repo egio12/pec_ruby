@@ -101,7 +101,9 @@ module PecRuby
       puts "\nCaricamento messaggi..."
       
       begin
-        messages = @client.pec_messages(limit: 20, reverse: true)
+        messages = @client.pec_messages(limit: 50, reverse: false)
+        # Sort by date in descending order (newest first)
+        messages = messages.sort_by { |msg| msg.date || Time.at(0) }.reverse
         
         if messages.empty?
           puts "Nessun messaggio PEC trovato"
@@ -161,10 +163,19 @@ module PecRuby
 
         # Corpo del messaggio
         body = message.original_body
-        if body && !body.strip.empty?
+        if body && body[:content] && !body[:content].strip.empty?
           puts "\nCORPO DEL MESSAGGIO"
           puts "─"*50
-          puts body.strip
+          
+          # Format the body for better readability
+          content = body[:content].strip
+          
+          # Clean up common formatting issues
+          content = content.gsub(/\r\n/, "\n")  # Normalize line endings
+          content = content.gsub(/\u0093|\u0094/, '"')  # Replace smart quotes
+          content = content.gsub(/\u0092/, "'")  # Replace smart apostrophes
+          
+          puts content
         end
 
         # Allegati

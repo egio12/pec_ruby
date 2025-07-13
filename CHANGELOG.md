@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-07-13
+
+### Fixed
+- **CLI body display bug**: Fixed `NoMethodError` when displaying message body in CLI where `original_body` hash was treated as string
+- **Message ordering in CLI**: Fixed message sorting to properly show newest messages first by date instead of sequence number
+
+### Changed
+- **CLI improvements**: Increased message limit from 20 to 50 messages for better user experience
+- **Text formatting**: Enhanced body text formatting with smart quote normalization and line ending cleanup
+
+### Added
+- Better text readability in CLI with automatic formatting improvements
+- Proper handling of different character encodings in message body display
+
 ## [0.2.1] - 2025-07-13
 
 ### Fixed
@@ -82,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aruba PEC (imaps.pec.aruba.it)
 - Generic IMAP-compliant PEC providers
 
-[Unreleased]: https://github.com/egio12/pec_ruby/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/egio12/pec_ruby/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/egio12/pec_ruby/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/egio12/pec_ruby/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/egio12/pec_ruby/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/egio12/pec_ruby/releases/tag/v0.1.0
