@@ -356,9 +356,3 @@ bundle exec rubocop        # Check code style
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
-## Contact
-
-Enrico Giordano - enricomaria.giordano@icloud.com
-
-Project Link: [https://github.com/egio12/pec_ruby](https://github.com/egio12/pec_ruby)
