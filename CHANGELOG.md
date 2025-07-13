@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-07-13
+
+### Fixed
+- **Fixed forwarded postacert.eml detection**: Now correctly detects and processes postacert.eml files that are forwarded as attachments in nested MESSAGE/RFC822 structures
+- Improved nested postacert part ID detection algorithm to handle complex IMAP message structures
+
+### Added
+- Comprehensive test suite for nested postacert detection scenarios
+- Performance optimizations with memoization for attachment calculations
+- Enhanced error handling for malformed IMAP structures
+- Support for environment variable configuration (`PEC_HOST`, `PEC_USERNAME`, `PEC_PASSWORD`)
+- Security improvements to prevent credential leaks in test files
+
+### Changed
+- **Code refactoring**: Unified duplicate postacert detection methods into single parameterized method
+- **Performance**: Added memoization to `original_attachments`, `nested_postacerts`, and `nested_postacert_attachments` methods
+- **Security**: Test files now use environment variables instead of hardcoded credentials
+- Improved robustness of bodystructure parsing with defensive programming techniques
+
+### Security
+- Removed all hardcoded credentials from test files
+- Added `.env.example` for secure configuration
+- Enhanced `.gitignore` to prevent accidental credential commits
+- Added security documentation in README
+
 ## [0.2.0] - 2025-07-13
 
 ### Changed
@@ -57,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aruba PEC (imaps.pec.aruba.it)
 - Generic IMAP-compliant PEC providers
 
-[Unreleased]: https://github.com/egio12/pec_ruby/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/egio12/pec_ruby/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/egio12/pec_ruby/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/egio12/pec_ruby/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/egio12/pec_ruby/releases/tag/v0.1.0

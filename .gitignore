@@ -30,3 +30,18 @@ doc/
 # Temporary files
 tmp/
 log/
+
+# Downloaded PEC files and test data
+downloads/
+*.eml
+*.p7s
+daticert.xml
+
+# Environment variables and credentials
+.env
+.env.local
+.env.*.local
+
+# Test credentials and sensitive data
+*_credentials.rb
+test_data/

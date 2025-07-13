@@ -6,9 +6,12 @@ A comprehensive Ruby gem for decoding and managing Italian PEC (Posta Elettronic
 
 - **IMAP Connection**: Connect to Italian PEC servers
 - **Automatic Extraction**: Automatically extracts original messages from postacert.eml attachments
+- **Nested PEC Support**: **NEW in v0.2.1** - Detects and processes forwarded PEC messages (nested postacert.eml files)
 - **Attachment Management**: Download and manage attachments easily
+- **Performance Optimized**: **NEW in v0.2.1** - Memoization for faster repeated access to attachments
 - **CLI Included**: Command-line interface for exploring PEC messages
 - **Programmatic API**: Methods for integrating PEC functionality into your Ruby applications
+- **Comprehensive Testing**: Full test suite with both unit and integration tests
 
 ## Installation
 
@@ -57,6 +60,8 @@ The CLI allows you to:
 - Explore received messages
 - View decoded original message contents
 - Download attachments
+- **NEW in v0.2.1**: Detect and process forwarded PEC messages (nested postacert.eml files)
+- **NEW in v0.2.1**: Enhanced performance with memoization for large attachments
 
 ## Programmatic Usage
 
@@ -148,6 +153,15 @@ PecRuby::Client.new(host:, username:, password:, ssl: true)
 - `username` (String): PEC email address
 - `password` (String): Account password
 - `ssl` (Boolean): Use SSL connection (default: true)
+
+> **Security Note**: For production usage, consider using environment variables instead of hardcoding credentials:
+> ```ruby
+> client = PecRuby::Client.new(
+>   host: ENV['PEC_HOST'],
+>   username: ENV['PEC_USERNAME'],
+>   password: ENV['PEC_PASSWORD']
+> )
+> ```
 
 #### Instance Methods
 
@@ -423,6 +437,41 @@ ensure
 end
 ```
 
+### Nested PEC Detection Example (NEW in v0.2.1)
+
+Handle forwarded PEC messages that contain other PEC messages as attachments:
+
+```ruby
+# Find a message with forwarded PECs
+message = client.pec_messages.find { |msg| msg.has_nested_postacerts? }
+
+if message
+  puts "Found message with #{message.nested_postacerts.size} forwarded PEC(s):"
+  
+  # Process each forwarded PEC
+  message.nested_postacert_messages.each_with_index do |nested_msg, index|
+    puts "  Forwarded PEC ##{index + 1}:"
+    puts "    Subject: #{nested_msg.subject}"
+    puts "    From: #{nested_msg.from}"
+    puts "    Date: #{nested_msg.date}"
+    puts "    Attachments: #{nested_msg.attachments.size}"
+    
+    # Download attachments from the forwarded PEC
+    nested_msg.attachments.each do |attachment|
+      unless attachment.postacert? # Avoid infinite recursion
+        attachment.save_to_dir('./downloads/forwarded')
+        puts "    Downloaded: #{attachment.filename}"
+      end
+    end
+    
+    # Check for even deeper nesting (PEC forwarded within forwarded PEC)
+    if nested_msg.has_nested_postacerts?
+      puts "    -> Contains #{nested_msg.nested_postacerts.size} more forwarded PEC(s)!"
+    end
+  end
+end
+```
+
 ## Error Handling
 
 The gem defines several specific error classes:
@@ -462,6 +511,46 @@ Other providers should work if they support standard IMAP, but have not been tes
 - **Message Threading**: The gem currently does not support message threading or conversation grouping. Each message is handled individually.
 - **Provider Testing**: Only tested with Aruba PEC. Other providers may work but are not guaranteed.
 - **Legal Compliance**: This library has not been evaluated for compliance with Italian PEC regulations or legal requirements. The message parsing methods used may not preserve all legally required aspects of certified email messages. Users should consult with legal experts and review applicable regulations before using this library in legally sensitive contexts.
+
+## Testing & Development Configuration
+
+### Environment Variables
+
+For security, use environment variables to configure your PEC credentials:
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env with your actual credentials
+export PEC_HOST=imaps.pec.aruba.it
+export PEC_USERNAME=your@domain.pec.it
+export PEC_PASSWORD=your_password
+export PEC_TEST_UID=1234  # Optional: specific message UID for testing
+```
+
+### Running Tests
+
+The gem includes comprehensive tests for all functionality:
+
+```bash
+bundle install
+
+# Run all tests (will skip integration tests without PEC credentials)
+bundle exec rspec
+
+# Run with PEC credentials for full integration testing
+PEC_HOST=imaps.pec.aruba.it PEC_USERNAME=your@domain.pec.it PEC_PASSWORD=your_password bundle exec rspec
+
+# Run specific test suites
+bundle exec rspec spec/pec_ruby/nested_postacert_spec.rb  # Nested PEC detection tests
+bundle exec rspec spec/pec_ruby/message_refactoring_spec.rb  # Performance & refactoring tests
+
+# Check code style
+bundle exec rubocop
+```
+
+**Note**: Integration tests require real PEC credentials and will be skipped if environment variables are not set. Unit tests will always run.
 
 ## Development
 

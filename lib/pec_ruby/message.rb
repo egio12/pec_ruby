@@ -148,12 +148,23 @@ module PecRuby
       raw_body.dup.force_encoding(charset).encode("UTF-8")
     end
 
-    # Get original message attachments
+    # Get original message attachments (with memoization)
     def original_attachments
-      mail = postacert_message
-      return [] unless mail&.attachments
-
-      mail.attachments.map { |att| Attachment.new(att) }
+      @original_attachments ||= begin
+        mail = postacert_message
+        attachments = []
+        
+        # Add attachments from the original message
+        if mail&.attachments
+          attachments += mail.attachments.map { |att| Attachment.new(att) }
+        end
+        
+        # Also check for postacert.eml attachments in the outer message structure
+        # This handles cases where postacert.eml files are forwarded as attachments
+        attachments += nested_postacert_attachments
+        
+        attachments
+      end
     end
 
     # Get original message attachments that are NOT postacert.eml files
@@ -163,7 +174,7 @@ module PecRuby
 
     # Get nested postacert.eml files from original message attachments
     def nested_postacerts
-      original_attachments.select(&:postacert?)
+      @nested_postacerts ||= original_attachments.select(&:postacert?)
     end
 
     # Check if original message has nested postacert.eml files
@@ -256,36 +267,67 @@ module PecRuby
       email
     end
 
-    def find_postacert_part_ids(bodystructure = @bodystructure, path = "")
+    def nested_postacert_attachments
+      @nested_postacert_attachments ||= begin
+        attachments = []
+        
+        # Find all postacert.eml parts (including nested)
+        all_postacert_part_ids = find_postacert_part_ids(@bodystructure, "", true)
+        main_postacert_part_id = find_postacert_part_ids.first
+        
+        # Add any postacert.eml parts that are not the main one as attachments
+        nested_postacert_part_ids = all_postacert_part_ids - [main_postacert_part_id]
+        
+        nested_postacert_part_ids.each do |part_id|
+          begin
+            raw_data = @client.fetch_body_part(@uid, part_id)
+            mail_data = Mail.read_from_string(raw_data)
+            
+            # Create a simplified attachment wrapper
+            wrapper = SimpleMailAttachment.new(mail_data, "postacert.eml", "message/rfc822")
+            attachments << Attachment.new(wrapper)
+          rescue => e
+            puts "Warning: Failed to extract nested postacert.eml at #{part_id}: #{e.message}"
+          end
+        end
+        
+        attachments
+      end
+    end
+    
+
+    def find_postacert_part_ids(bodystructure = @bodystructure, path = "", include_nested = false)
       results = []
+      
+      return results unless bodystructure
 
       if bodystructure.respond_to?(:parts) && bodystructure.parts
         bodystructure.parts.each_with_index do |part, index|
           part_path = path.empty? ? "#{index + 1}" : "#{path}.#{index + 1}"
-          results += find_postacert_part_ids(part, part_path)
+          results += find_postacert_part_ids(part, part_path, include_nested)
         end
-      elsif bodystructure.media_type == "MESSAGE" && bodystructure.subtype == "RFC822"
-        if bodystructure.param && bodystructure.param["NAME"]&.downcase&.include?("postacert.eml")
+      elsif bodystructure.respond_to?(:media_type) && bodystructure.media_type == "MESSAGE" && 
+            bodystructure.respond_to?(:subtype) && bodystructure.subtype == "RFC822"
+        if bodystructure.respond_to?(:param) && bodystructure.param && 
+           bodystructure.param["NAME"]&.downcase&.include?("postacert.eml")
           results << path
+        end
+        
+        # Search inside MESSAGE/RFC822 bodies for nested postacert.eml files if requested
+        if include_nested && bodystructure.respond_to?(:body) && bodystructure.body&.respond_to?(:parts)
+          bodystructure.body.parts.each_with_index do |nested_part, nested_index|
+            nested_path = "#{path}.#{nested_index + 1}"
+            results += find_postacert_part_ids(nested_part, nested_path, include_nested)
+          end
         end
       end
 
       results
     end
 
+    # Delegate to the shared implementation in NestedPostacertMessage
     def extract_text_part(mail, preferred_type = "text/plain")
-      return mail unless mail.multipart?
-
-      mail.parts.each do |part|
-        if part.multipart?
-          found = extract_text_part(part, preferred_type)
-          return found if found
-        elsif part.mime_type == preferred_type
-          return part
-        end
-      end
-
-      nil
+      NestedPostacertMessage.new(mail).send(:extract_text_part, mail, preferred_type)
     end
   end
 end

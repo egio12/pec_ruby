@@ -197,4 +197,19 @@ module PecRuby
       nil
     end
   end
+
+  # Simple wrapper for mail attachments that mimics Mail::Attachment interface
+  class SimpleMailAttachment
+    attr_reader :mail, :filename, :mime_type
+
+    def initialize(mail, filename, mime_type)
+      @mail = mail
+      @filename = filename
+      @mime_type = mime_type
+    end
+
+    def decoded
+      @mail.to_s
+    end
+  end
 end
