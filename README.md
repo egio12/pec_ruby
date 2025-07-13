@@ -325,8 +325,15 @@ end
 ## Supported PEC Providers
 
 The gem has been tested with:
-- Aruba PEC (`imaps.pec.aruba.it`)
-- Other providers should work if they support standard IMAP
+- Aruba PEC (`imaps.pec.aruba.it`) ✅ **Fully tested**
+
+Other providers should work if they support standard IMAP, but have not been tested yet.
+
+## Current Limitations
+
+- **Message Threading**: The gem currently does not support message threading or conversation grouping. Each message is handled individually.
+- **Provider Testing**: Only tested with Aruba PEC. Other providers may work but are not guaranteed.
+- **Legal Compliance**: This library has not been evaluated for compliance with Italian PEC regulations or legal requirements. The message parsing methods used may not preserve all legally required aspects of certified email messages. Users should consult with legal experts and review applicable regulations before using this library in legally sensitive contexts.
 
 ## Development
 
@@ -352,6 +359,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Contact
 
-EMG - enricomaria.giordano@icloud.com
+Enrico Giordano - enricomaria.giordano@icloud.com
 
-Project Link: [https://github.com/enrico/pec_ruby](https://github.com/enrico/pec_ruby)
+Project Link: [https://github.com/egio12/pec_ruby](https://github.com/egio12/pec_ruby)
