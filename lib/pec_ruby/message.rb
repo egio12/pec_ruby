@@ -20,7 +20,7 @@ module PecRuby
       return nil unless @envelope.subject
       
       decoded = Mail::Encodings.value_decode(@envelope.subject)
-      decoded.gsub!("POSTA CERTIFICATA:", "") if decoded.start_with?("POSTA CERTIFICATA:")
+      decoded = decoded.gsub("POSTA CERTIFICATA:", "") if decoded.start_with?("POSTA CERTIFICATA:")
       decoded.strip
     end
 
@@ -89,13 +89,15 @@ module PecRuby
       postacert_message&.date
     end
 
-    # Get original message body (text/plain preferred)
+    # Get original message body with format information
     def original_body
       mail = postacert_message
       return nil unless mail
 
       text_part = extract_text_part(mail, "text/plain")
       html_part = extract_text_part(mail, "text/html")
+      
+      # Prefer text/plain, but return HTML if that's all we have
       selected_part = text_part || html_part
 
       return nil unless selected_part
@@ -105,7 +107,45 @@ module PecRuby
                 selected_part.content_type_parameters&.[]("charset") || 
                 "UTF-8"
       
-      raw_body.force_encoding(charset).encode("UTF-8")
+      content = raw_body.dup.force_encoding(charset).encode("UTF-8")
+      
+      {
+        content: content,
+        content_type: selected_part.mime_type,
+        charset: charset
+      }
+    end
+
+    # Get original message body as plain text only
+    def original_body_text
+      mail = postacert_message
+      return nil unless mail
+
+      text_part = extract_text_part(mail, "text/plain")
+      return nil unless text_part
+
+      raw_body = text_part.body.decoded
+      charset = text_part.charset || 
+                text_part.content_type_parameters&.[]("charset") || 
+                "UTF-8"
+      
+      raw_body.dup.force_encoding(charset).encode("UTF-8")
+    end
+
+    # Get original message body as HTML only
+    def original_body_html
+      mail = postacert_message
+      return nil unless mail
+
+      html_part = extract_text_part(mail, "text/html")
+      return nil unless html_part
+
+      raw_body = html_part.body.decoded
+      charset = html_part.charset || 
+                html_part.content_type_parameters&.[]("charset") || 
+                "UTF-8"
+      
+      raw_body.dup.force_encoding(charset).encode("UTF-8")
     end
 
     # Get original message attachments
@@ -114,6 +154,69 @@ module PecRuby
       return [] unless mail&.attachments
 
       mail.attachments.map { |att| Attachment.new(att) }
+    end
+
+    # Get original message attachments that are NOT postacert.eml files
+    def original_regular_attachments
+      original_attachments.reject(&:postacert?)
+    end
+
+    # Get nested postacert.eml files from original message attachments
+    def nested_postacerts
+      original_attachments.select(&:postacert?)
+    end
+
+    # Check if original message has nested postacert.eml files
+    def has_nested_postacerts?
+      !nested_postacerts.empty?
+    end
+
+    # Get all nested postacert messages parsed and ready to use
+    def nested_postacert_messages
+      nested_postacerts.map(&:as_postacert_message).compact
+    end
+
+    # Get a flattened view of all postacert messages (original + nested)
+    # Returns array with the original message first, followed by nested ones
+    def all_postacert_messages
+      messages = []
+      
+      # Add the main postacert message (this message)
+      if has_postacert?
+        messages << {
+          level: 0,
+          message: self,
+          type: :main_postacert
+        }
+      end
+      
+      # Add nested postacert messages
+      nested_postacert_messages.each_with_index do |nested_msg, index|
+        messages << {
+          level: 1,
+          message: nested_msg,
+          type: :nested_postacert,
+          index: index
+        }
+        
+        # Check for deeper nesting (postacert within postacert within postacert)
+        if nested_msg.has_nested_postacerts?
+          nested_msg.nested_postacerts.each_with_index do |deep_nested, deep_index|
+            deep_nested_msg = deep_nested.as_postacert_message
+            if deep_nested_msg
+              messages << {
+                level: 2,
+                message: deep_nested_msg,
+                type: :deep_nested_postacert,
+                parent_index: index,
+                index: deep_index
+              }
+            end
+          end
+        end
+      end
+      
+      messages
     end
 
     # Summary information
@@ -129,7 +232,11 @@ module PecRuby
         original_from: original_from,
         original_to: original_to,
         original_date: original_date,
-        attachments_count: original_attachments.size
+        attachments_count: original_attachments.size,
+        regular_attachments_count: original_regular_attachments.size,
+        nested_postacerts_count: nested_postacerts.size,
+        has_nested_postacerts: has_nested_postacerts?,
+        total_postacert_messages: all_postacert_messages.size
       }
     end
 

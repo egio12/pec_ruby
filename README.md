@@ -101,16 +101,33 @@ puts message.date          # PEC message date
 # Original message information
 puts message.original_subject  # Original subject
 puts message.original_from    # Original sender
-puts message.original_body    # Original message body
+body_info = message.original_body    # Original message body with format info
 
 # Attachments
 message.original_attachments.each do |attachment|
   puts "#{attachment.filename} (#{attachment.size_kb} KB)"
   
-  # Save attachment
-  attachment.save_to("/path/to/file.pdf")
-  # or
-  attachment.save_to_dir("/downloads/")
+  # Check if attachment is a nested postacert.eml (forwarded PEC)
+  if attachment.postacert?
+    puts "  -> This is a nested postacert.eml!"
+    nested_msg = attachment.as_postacert_message
+    puts "  -> Original subject: #{nested_msg.subject}"
+    puts "  -> Original from: #{nested_msg.from}"
+  else
+    # Save regular attachment
+    attachment.save_to("/path/to/file.pdf")
+    # or
+    attachment.save_to_dir("/downloads/")
+  end
+end
+
+# Handle nested postacerts (forwarded PECs)
+if message.has_nested_postacerts?
+  puts "This message contains #{message.nested_postacerts.size} forwarded PEC(s)"
+  
+  message.nested_postacert_messages.each do |nested_msg|
+    puts "Nested PEC: #{nested_msg.subject} from #{nested_msg.from}"
+  end
 end
 ```
 
@@ -215,14 +232,52 @@ message.original_subject  # String: Original subject
 message.original_from     # String: Original sender
 message.original_to       # Array<String>: Original recipients
 message.original_date     # Time: Original message date
-message.original_body     # String: Original message body (decoded)
+message.original_body     # Hash: Original message body with format info
+message.original_body_text  # String: Plain text body only
+message.original_body_html  # String: HTML body only
+```
+
+##### Original Message Body
+
+The `original_body` method returns a hash with format information, allowing you to handle different content types appropriately:
+
+```ruby
+body_info = message.original_body
+if body_info
+  puts "Content type: #{body_info[:content_type]}"
+  puts "Charset: #{body_info[:charset]}"
+  
+  case body_info[:content_type]
+  when 'text/html'
+    # Handle HTML content - preserve formatting for web display
+    html_content = body_info[:content]
+    # You can now render this in a web browser or HTML viewer
+  when 'text/plain'
+    # Handle plain text content
+    text_content = body_info[:content]
+    puts text_content
+  end
+end
+
+# Or use convenience methods for specific formats
+text_only = message.original_body_text  # Returns nil if no text/plain part
+html_only = message.original_body_html  # Returns nil if no text/html part
 ```
 
 ##### Attachments
 
 ```ruby
 # Get original message attachments
-message.original_attachments  # Array<PecRuby::Attachment>
+message.original_attachments         # Array<PecRuby::Attachment> - All attachments
+message.original_regular_attachments # Array<PecRuby::Attachment> - Non-postacert attachments only
+message.nested_postacerts           # Array<PecRuby::Attachment> - Nested postacert.eml files only
+
+# Check for nested postacerts (forwarded PECs)
+message.has_nested_postacerts?      # Boolean
+message.nested_postacert_messages   # Array<PecRuby::NestedPostacertMessage>
+
+# Get all postacert messages in a flattened structure
+message.all_postacert_messages      # Array<Hash> - Hierarchical view of all messages
 ```
 
 ##### Summary Information
@@ -254,9 +309,40 @@ attachment.content      # String: Raw binary content
 attachment.save_to(path)           # Save to specific path
 attachment.save_to_dir(directory)  # Save to directory with original filename
 
+# Nested postacert detection and parsing
+attachment.postacert?              # Boolean: Check if this is a postacert.eml
+attachment.as_postacert_message    # PecRuby::NestedPostacertMessage: Parse as nested PEC
+
 # Summary
 attachment.summary      # Hash: Complete attachment information
 attachment.to_s         # String: Human-readable description
+```
+
+### PecRuby::NestedPostacertMessage
+
+Represents a nested postacert.eml file (forwarded PEC) found within attachments.
+
+#### Instance Methods
+
+```ruby
+# Basic message information
+nested_msg.subject      # String: Subject of the nested message
+nested_msg.from         # String: Sender of the nested message
+nested_msg.to           # Array<String>: Recipients of the nested message
+nested_msg.date         # Time: Date of the nested message
+
+# Body content (same API as original_body)
+nested_msg.body         # Hash: Body with content_type and charset info
+nested_msg.body_text    # String: Plain text body only
+nested_msg.body_html    # String: HTML body only
+
+# Nested attachments
+nested_msg.attachments           # Array<PecRuby::Attachment>
+nested_msg.nested_postacerts     # Array<PecRuby::Attachment> - Even deeper nesting!
+nested_msg.has_nested_postacerts? # Boolean: Check for deeper nesting
+
+# Summary
+nested_msg.summary      # Hash: Complete nested message information
 ```
 
 ## Complete Example
@@ -279,12 +365,54 @@ begin
   pec_messages.each do |message|
     puts "Subject: #{message.original_subject}"
     puts "From: #{message.original_from}"
-    puts "Attachments: #{message.original_attachments.size}"
+    puts "Total attachments: #{message.original_attachments.size}"
+    puts "Regular attachments: #{message.original_regular_attachments.size}"
+    puts "Nested PECs: #{message.nested_postacerts.size}"
     
-    # Download attachments
-    message.original_attachments.each do |attachment|
+    # Handle message body based on format
+    body_info = message.original_body
+    if body_info
+      puts "Body format: #{body_info[:content_type]}"
+      case body_info[:content_type]
+      when 'text/html'
+        puts "HTML content available for web display"
+        # Save HTML to file for viewing
+        File.write("./downloads/message_#{message.uid}.html", body_info[:content])
+      when 'text/plain'
+        puts "Text content:"
+        puts body_info[:content][0..100] + "..." # First 100 chars
+      end
+    end
+    
+    # Download regular attachments
+    message.original_regular_attachments.each do |attachment|
       attachment.save_to_dir('./downloads')
       puts "Downloaded: #{attachment.filename}"
+    end
+    
+    # Handle nested postacerts (forwarded PECs)
+    if message.has_nested_postacerts?
+      puts "Found #{message.nested_postacerts.size} forwarded PEC(s):"
+      
+      message.nested_postacert_messages.each_with_index do |nested_msg, index|
+        puts "  Nested PEC ##{index + 1}:"
+        puts "    Subject: #{nested_msg.subject}"
+        puts "    From: #{nested_msg.from}"
+        puts "    Attachments: #{nested_msg.attachments.size}"
+        
+        # Download nested PEC attachments
+        nested_msg.attachments.each do |nested_attachment|
+          unless nested_attachment.postacert? # Avoid infinite recursion
+            nested_attachment.save_to_dir('./downloads/nested')
+            puts "    Downloaded nested: #{nested_attachment.filename}"
+          end
+        end
+        
+        # Check for even deeper nesting
+        if nested_msg.has_nested_postacerts?
+          puts "    -> This nested PEC contains #{nested_msg.nested_postacerts.size} more nested PEC(s)!"
+        end
+      end
     end
     
     puts "─" * 40

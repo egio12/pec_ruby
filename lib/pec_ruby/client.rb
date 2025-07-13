@@ -43,7 +43,8 @@ module PecRuby
     end
 
     def connected?
-      @imap && !@imap.disconnected?
+      return false unless @imap
+      !@imap.disconnected?
     end
 
     # Get all messages or a subset
