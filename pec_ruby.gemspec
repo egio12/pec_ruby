@@ -35,6 +35,7 @@ Gem::Specification.new do |spec|
   # Core dependencies
   spec.add_dependency 'mail', '~> 2.7'
   spec.add_dependency 'net-imap', '~> 0.3'
+  spec.add_dependency 'tty-screen', '~> 0.8'
 
   # Development dependencies
   spec.add_development_dependency 'rspec', '~> 3.0'

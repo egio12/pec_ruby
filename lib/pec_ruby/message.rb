@@ -15,8 +15,41 @@ module PecRuby
       @postacert_extracted = false
     end
 
-    # Basic envelope information
+    # Basic envelope information - now points to postacert.eml when available
     def subject
+      if has_postacert?
+        postacert_message&.subject
+      else
+        original_subject
+      end
+    end
+
+    def from
+      if has_postacert?
+        postacert_message&.from&.first
+      else
+        original_from
+      end
+    end
+
+    def to
+      if has_postacert?
+        postacert_message&.to || []
+      else
+        original_to
+      end
+    end
+
+    def date
+      if has_postacert?
+        postacert_message&.date
+      else
+        original_date
+      end
+    end
+
+    # Original message envelope information (the outer PEC container)
+    def original_subject
       return nil unless @envelope.subject
       
       decoded = Mail::Encodings.value_decode(@envelope.subject)
@@ -24,20 +57,20 @@ module PecRuby
       decoded.strip
     end
 
-    def from
+    def original_from
       return nil unless @envelope.from&.first
       
       from_addr = @envelope.from.first
       extract_real_sender(from_addr)
     end
 
-    def to
+    def original_to
       return [] unless @envelope.to
       
       @envelope.to.map { |addr| "#{addr.mailbox}@#{addr.host}" }
     end
 
-    def date
+    def original_date
       @envelope.date ? Time.parse(@envelope.date.to_s) : nil
     end
 
@@ -69,28 +102,8 @@ module PecRuby
       @postacert_mail
     end
 
-    # Get original message subject
-    def original_subject
-      postacert_message&.subject
-    end
-
-    # Get original message sender
-    def original_from
-      postacert_message&.from&.first
-    end
-
-    # Get original message recipients
-    def original_to
-      postacert_message&.to || []
-    end
-
-    # Get original message date
-    def original_date
-      postacert_message&.date
-    end
-
-    # Get original message body with format information
-    def original_body
+    # Get postacert message body with format information
+    def postacert_body
       mail = postacert_message
       return nil unless mail
 
@@ -116,8 +129,8 @@ module PecRuby
       }
     end
 
-    # Get original message body as plain text only
-    def original_body_text
+    # Get postacert message body as plain text only
+    def postacert_body_text
       mail = postacert_message
       return nil unless mail
 
@@ -132,8 +145,8 @@ module PecRuby
       raw_body.dup.force_encoding(charset).encode("UTF-8")
     end
 
-    # Get original message body as HTML only
-    def original_body_html
+    # Get postacert message body as HTML only
+    def postacert_body_html
       mail = postacert_message
       return nil unless mail
 
@@ -148,13 +161,40 @@ module PecRuby
       raw_body.dup.force_encoding(charset).encode("UTF-8")
     end
 
-    # Get original message attachments (with memoization)
-    def original_attachments
-      @original_attachments ||= begin
+    # Get message body - preferring postacert.eml if available, otherwise direct message
+    def raw_body
+      if has_postacert?
+        postacert_body
+      else
+        direct_message_body
+      end
+    end
+
+    # Get message body as plain text - preferring postacert.eml if available, otherwise direct message
+    def raw_body_text
+      if has_postacert?
+        postacert_body_text
+      else
+        direct_message_body_text
+      end
+    end
+
+    # Get message body as HTML - preferring postacert.eml if available, otherwise direct message
+    def raw_body_html
+      if has_postacert?
+        postacert_body_html
+      else
+        direct_message_body_html
+      end
+    end
+
+    # Get postacert message attachments (with memoization)
+    def postacert_attachments
+      @postacert_attachments ||= begin
         mail = postacert_message
         attachments = []
         
-        # Add attachments from the original message
+        # Add attachments from the postacert message
         if mail&.attachments
           attachments += mail.attachments.map { |att| Attachment.new(att) }
         end
@@ -167,14 +207,53 @@ module PecRuby
       end
     end
 
-    # Get original message attachments that are NOT postacert.eml files
-    def original_regular_attachments
-      original_attachments.reject(&:postacert?)
+    # Get postacert message attachments that are NOT postacert.eml files
+    def postacert_regular_attachments
+      postacert_attachments.reject(&:postacert?)
     end
 
-    # Get nested postacert.eml files from original message attachments
+    # Get attachments - preferring postacert.eml if available, otherwise direct message
+    def attachments
+      if has_postacert?
+        postacert_attachments
+      else
+        [] # Direct messages typically don't have attachments via IMAP
+      end
+    end
+
+    # Get regular attachments (non-postacert.eml)
+    def regular_attachments
+      if has_postacert?
+        postacert_regular_attachments
+      else
+        [] # Direct messages typically don't have attachments via IMAP
+      end
+    end
+
+    # Legacy methods for backward compatibility
+    def original_attachments
+      postacert_attachments
+    end
+
+    def original_regular_attachments
+      postacert_regular_attachments
+    end
+
+    def original_body
+      postacert_body
+    end
+
+    def original_body_text
+      postacert_body_text
+    end
+
+    def original_body_html
+      postacert_body_html
+    end
+
+    # Get nested postacert.eml files from postacert message attachments
     def nested_postacerts
-      @nested_postacerts ||= original_attachments.select(&:postacert?)
+      @nested_postacerts ||= postacert_attachments.select(&:postacert?)
     end
 
     # Check if original message has nested postacert.eml files
@@ -328,6 +407,77 @@ module PecRuby
     # Delegate to the shared implementation in NestedPostacertMessage
     def extract_text_part(mail, preferred_type = "text/plain")
       NestedPostacertMessage.new(mail).send(:extract_text_part, mail, preferred_type)
+    end
+
+    private
+
+    # Get the direct message body (without postacert.eml)
+    def direct_message_body
+      mail = direct_message_mail
+      return nil unless mail
+
+      text_part = extract_text_part(mail, "text/plain")
+      html_part = extract_text_part(mail, "text/html")
+      
+      # Prefer text/plain, but return HTML if that's all we have
+      selected_part = text_part || html_part
+
+      return nil unless selected_part
+
+      raw_body = selected_part.body.decoded
+      charset = selected_part.charset || 
+                selected_part.content_type_parameters&.[]("charset") || 
+                "UTF-8"
+      
+      content = raw_body.dup.force_encoding(charset).encode("UTF-8")
+      
+      {
+        content: content,
+        content_type: selected_part.mime_type,
+        charset: charset
+      }
+    end
+
+    # Get the direct message body as plain text
+    def direct_message_body_text
+      mail = direct_message_mail
+      return nil unless mail
+
+      text_part = extract_text_part(mail, "text/plain")
+      return nil unless text_part
+
+      raw_body = text_part.body.decoded
+      charset = text_part.charset || 
+                text_part.content_type_parameters&.[]("charset") || 
+                "UTF-8"
+      
+      raw_body.dup.force_encoding(charset).encode("UTF-8")
+    end
+
+    # Get the direct message body as HTML
+    def direct_message_body_html
+      mail = direct_message_mail
+      return nil unless mail
+
+      html_part = extract_text_part(mail, "text/html")
+      return nil unless html_part
+
+      raw_body = html_part.body.decoded
+      charset = html_part.charset || 
+                html_part.content_type_parameters&.[]("charset") || 
+                "UTF-8"
+      
+      raw_body.dup.force_encoding(charset).encode("UTF-8")
+    end
+
+    # Get the direct message parsed as Mail object
+    def direct_message_mail
+      @direct_message_mail ||= begin
+        raw_data = @client.fetch_body_part(@uid, "")
+        Mail.read_from_string(raw_data)
+      rescue => e
+        raise Error, "Failed to extract direct message: #{e.message}"
+      end
     end
   end
 end

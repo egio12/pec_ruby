@@ -1,9 +1,10 @@
 PATH
   remote: .
   specs:
-    pec_ruby (0.2.2)
+    pec_ruby (0.2.3)
       mail (~> 2.7)
       net-imap (~> 0.3)
+      tty-screen (~> 0.8)
 
 GEM
   remote: https://rubygems.org/
@@ -67,6 +68,7 @@ GEM
       prism (~> 1.4)
     ruby-progressbar (1.13.0)
     timeout (0.4.3)
+    tty-screen (0.8.2)
     unicode-display_width (3.1.4)
       unicode-emoji (~> 4.0, >= 4.0.4)
     unicode-emoji (4.0.4)

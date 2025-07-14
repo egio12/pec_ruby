@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-07-14
+
+### Changed
+- **🚀 Ruby Way Behavior**: **BREAKING CHANGE** - Method behavior now follows Ruby conventions:
+  - `subject/from/to/date` → Returns most relevant content (postacert.eml if available, otherwise PEC envelope)
+  - `original_subject/from/to/date` → Always returns PEC envelope information
+  - `postacert_body_*` → Direct access to postacert.eml content
+  - `raw_body_*` → Smart methods that work with both received and sent messages
+
+### Added
+- **Smart attachment access**: New `attachments` and `regular_attachments` methods for intuitive access
+- **Folder management**: Added `available_folders`, `select_folder`, and `select_inbox` methods
+- **Enhanced body access**: `postacert_body_*` methods for direct postacert.eml access
+- **Backward compatibility**: All legacy `original_*` methods maintained as aliases
+- **Professional CLI interface**: Complete redesign with full-screen layout and fixed header
+- **CLI folder selection**: Interactive folder picker with current selection indicator
+- **Interactive message viewer**: Menu-driven navigation with message options
+- **Performance timing**: Real-time load time display for user feedback
+- **Progress indicators**: Visual feedback for all CLI operations
+- **Enhanced attachment management**: Batch download with progress tracking
+- **Screen management**: Added `tty-screen` dependency for professional layout
+
+### Removed
+- **`pec_messages` method**: Removed redundant method. Use `messages` instead
+
+### Fixed
+- **Method naming consistency**: All methods now follow Ruby naming conventions
+- **Sent message support**: `raw_body_*` methods now work seamlessly with sent messages
+- **Test coverage**: Comprehensive test suite updated for new behavior
+
+### Migration Notes
+- Most existing code will continue to work due to backward compatibility
+- For PEC envelope data, use `original_*` methods
+- For postacert.eml data, use `postacert_*` methods or legacy `original_*` aliases
+- The new behavior is more intuitive: `message.subject` returns what users expect to see
+
 ## [0.2.2] - 2025-07-13
 
 ### Fixed
